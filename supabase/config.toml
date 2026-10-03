@@ -1,0 +1,13 @@
+project_id = "resumeai"
+
+[functions.analyze-resume]
+verify_jwt = true
+
+[functions.analyze-job]
+verify_jwt = true
+
+[functions.tailor-resume]
+verify_jwt = true
+
+[functions.search-jobs]
+verify_jwt = true
