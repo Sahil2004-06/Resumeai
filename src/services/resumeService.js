@@ -21,6 +21,13 @@ export async function saveResume(resume) {
   return data
 }
 
+export async function deleteResume(id) {
+  const client = requireClient()
+  if (!id) throw new Error('Resume id is required to delete a resume.')
+  const { error } = await client.from('resumes').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function createResumeVersion(version) {
   const client = requireClient()
   const { data, error } = await client.from('resume_versions').insert(version).select().single()

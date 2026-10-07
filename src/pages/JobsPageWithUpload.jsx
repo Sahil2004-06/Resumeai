@@ -24,17 +24,34 @@ export default function JobsPageWithUpload() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
+
     listResumes().then((savedResumes) => {
+      if (cancelled) return
+
       if (savedResumes?.[0]?.data) {
-        setResume(savedResumes[0].data)
-        return searchJobsForResume(savedResumes[0].data, { query }).then((jobsResult) => { setResult(jobsResult); setMessage(jobsResult.message || '') })
+        const latestResume = savedResumes[0].data
+        setResume(latestResume)
+        return searchJobsForResume(latestResume, { query }).then((jobsResult) => {
+          if (!cancelled) {
+            setResult(jobsResult)
+            setMessage(jobsResult.message || '')
+          }
+        })
       }
+
       setResult({ jobs: fallbackJobs })
     }).catch((error) => {
-      setMessage(error.message)
-      setResult({ jobs: fallbackJobs })
+      if (!cancelled) {
+        setMessage(error.message)
+        setResult({ jobs: fallbackJobs })
+      }
     })
-  }, [])
+
+    return () => {
+      cancelled = true
+    }
+  }, [query])
 
   async function uploadResume(event) {
     const file = event.target.files?.[0]

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx'
 import { Download, Plus, Printer, Save, Trash2 } from 'lucide-react'
-import { saveResume } from '../services/resumeService.js'
+import { listResumes, saveResume } from '../services/resumeService.js'
 
 const emptyResume = {
   personal: { name: '', role: '', email: '', phone: '', location: '', linkedin: '', github: '', leetcode: '', codeforces: '' },
@@ -15,10 +16,45 @@ const emptyResume = {
   achievements: [''],
   certifications: [{ name: '', issuer: '', date: '' }],
   sectionOrder: ['summary', 'codingProfiles', 'experience', 'projects', 'education', 'technicalSkills', 'softSkills', 'achievements', 'certifications'],
+  formatting: { fontFamily: 'Arial', alignment: 'left' },
 }
 
 function updateList(setResume, section, index, field, value) {
   setResume((current) => ({ ...current, [section]: current[section].map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }))
+}
+
+function normalizeResume(data = {}) {
+  const education = Array.isArray(data.education)
+    ? data.education
+    : data.education
+      ? [{ school: '', degree: data.education, dates: '', score: '' }]
+      : emptyResume.education
+  const experience = Array.isArray(data.experience) && data.experience.length ? data.experience : emptyResume.experience
+  const projects = Array.isArray(data.projects) && data.projects.length ? data.projects : emptyResume.projects
+  const certifications = Array.isArray(data.certifications) && data.certifications.length ? data.certifications : emptyResume.certifications
+  const technicalSkills = data.technicalSkills && typeof data.technicalSkills === 'object' && !Array.isArray(data.technicalSkills)
+    ? { ...emptyResume.technicalSkills, ...data.technicalSkills }
+    : { ...emptyResume.technicalSkills }
+
+  if (Array.isArray(data.skills) && data.skills.length && !Object.values(technicalSkills).some((group) => group.length)) {
+    technicalSkills.tools = data.skills
+  }
+
+  return {
+    ...emptyResume,
+    ...data,
+    personal: { ...emptyResume.personal, ...(data.personal || {}) },
+    education,
+    experience,
+    projects,
+    certifications,
+    technicalSkills,
+    codingProfiles: Array.isArray(data.codingProfiles) && data.codingProfiles.length ? data.codingProfiles : emptyResume.codingProfiles,
+    softSkills: Array.isArray(data.softSkills) ? data.softSkills : [],
+    achievements: Array.isArray(data.achievements) && data.achievements.length ? data.achievements : [''],
+    sectionOrder: Array.isArray(data.sectionOrder) ? data.sectionOrder : emptyResume.sectionOrder,
+    formatting: { ...emptyResume.formatting, ...(data.formatting || {}) },
+  }
 }
 
 const skillGroups = [['programmingLanguages', 'Programming languages'], ['frontend', 'Frontend'], ['backend', 'Backend'], ['databases', 'Databases'], ['tools', 'Tools'], ['cloud', 'Cloud / DevOps']]
@@ -112,11 +148,11 @@ function Section({ title, children, action }) {
 function ResumePreview({ resume }) {
   if (resume.sectionOrder) return <OrderedResumePreview resume={resume} />
   const skills = Object.values(resume.technicalSkills || {}).flat().filter(Boolean)
-  return <section className="resume-template-preview"><div className="template-label"><span>ATS-friendly template</span><small>Standard headings · single column · text-based</small></div><article className="resume-paper ats-paper"><header><h2>{resume.personal.name || 'Your Name'}</h2><strong>{resume.personal.role || 'Professional title'}</strong><p>{[resume.personal.email, resume.personal.phone, resume.personal.location, resume.personal.linkedin].filter(Boolean).join(' | ') || 'email@example.com | City, Country'}</p></header>{resume.summary && <PaperBlock title="Summary"><p>{resume.summary}</p></PaperBlock>}{resume.codingProfiles?.some((profile) => profile.username || profile.url) && <PaperBlock title="Coding Profiles">{resume.codingProfiles.filter((profile) => profile.username || profile.url).map((profile) => <p key={`${profile.platform}-${profile.username}`}><b>{profile.platform}:</b> {profile.username} {profile.url && `| ${profile.url}`}</p>)}</PaperBlock>}<PaperBlock title="Experience">{resume.experience.filter((item) => item.company || item.title).map((item, index) => <div className="template-entry" key={index}><div><b>{item.title || 'Role'}</b><span>{item.company} | {item.dates}</span></div><ul>{item.bullets.filter(Boolean).map((bullet, bulletIndex) => <li key={bulletIndex}>{bullet}</li>)}</ul></div>)}</PaperBlock>{resume.education.some((item) => item.school || item.degree) && <PaperBlock title="Education">{resume.education.filter((item) => item.school || item.degree).map((item, index) => <p key={index}><b>{item.degree}</b> | {item.school} | {item.dates}</p>)}</PaperBlock>}{skills.length > 0 && <PaperBlock title="Technical Skills">{skillGroups.map(([key, label]) => resume.technicalSkills[key].length > 0 && <p key={key}><b>{label}:</b> {resume.technicalSkills[key].join(', ')}</p>)}</PaperBlock>}{resume.achievements.some(Boolean) && <PaperBlock title="Achievements"><ul>{resume.achievements.filter(Boolean).map((item, index) => <li key={index}>{item}</li>)}</ul></PaperBlock>}{resume.certifications.some((item) => item.name) && <PaperBlock title="Certifications">{resume.certifications.filter((item) => item.name).map((item, index) => <p key={index}><b>{item.name}</b> | {item.issuer} | {item.date}</p>)}</PaperBlock>}</article></section>
+  return <section className="resume-template-preview"><div className="template-label"><span>ATS-friendly template</span><small>Standard headings · single column · text-based</small></div><article className="resume-paper ats-paper" style={{ fontFamily: resume.formatting?.fontFamily, textAlign: resume.formatting?.alignment }}><header><h2>{resume.personal.name || 'Your Name'}</h2><strong>{resume.personal.role || 'Professional title'}</strong><p>{[resume.personal.email, resume.personal.phone, resume.personal.location, resume.personal.linkedin].filter(Boolean).join(' | ') || 'email@example.com | City, Country'}</p></header>{resume.summary && <PaperBlock title="Summary"><p>{resume.summary}</p></PaperBlock>}{resume.codingProfiles?.some((profile) => profile.username || profile.url) && <PaperBlock title="Coding Profiles">{resume.codingProfiles.filter((profile) => profile.username || profile.url).map((profile) => <p key={`${profile.platform}-${profile.username}`}><b>{profile.platform}:</b> {profile.username} {profile.url && `| ${profile.url}`}</p>)}</PaperBlock>}<PaperBlock title="Experience">{resume.experience.filter((item) => item.company || item.title).map((item, index) => <div className="template-entry" key={index}><div><b>{item.title || 'Role'}</b><span>{item.company} | {item.dates}</span></div><ul>{item.bullets.filter(Boolean).map((bullet, bulletIndex) => <li key={bulletIndex}>{bullet}</li>)}</ul></div>)}</PaperBlock>{resume.education.some((item) => item.school || item.degree) && <PaperBlock title="Education">{resume.education.filter((item) => item.school || item.degree).map((item, index) => <p key={index}><b>{item.degree}</b> | {item.school} | {item.dates}</p>)}</PaperBlock>}{skills.length > 0 && <PaperBlock title="Technical Skills">{skillGroups.map(([key, label]) => resume.technicalSkills[key].length > 0 && <p key={key}><b>{label}:</b> {resume.technicalSkills[key].join(', ')}</p>)}</PaperBlock>}{resume.achievements.some(Boolean) && <PaperBlock title="Achievements"><ul>{resume.achievements.filter(Boolean).map((item, index) => <li key={index}>{item}</li>)}</ul></PaperBlock>}{resume.certifications.some((item) => item.name) && <PaperBlock title="Certifications">{resume.certifications.filter((item) => item.name).map((item, index) => <p key={index}><b>{item.name}</b> | {item.issuer} | {item.date}</p>)}</PaperBlock>}</article></section>
 }
 
 function OrderedResumePreview({ resume }) {
-  return <section className="resume-template-preview"><div className="template-label"><span>ATS-friendly template</span><small>Standard headings · single column · empty sections omitted</small></div><article className="resume-paper ats-paper"><header><h2>{resume.personal.name || 'Your Name'}</h2><strong>{resume.personal.role || 'Professional title'}</strong><p>{[resume.personal.email, resume.personal.phone, resume.personal.location].filter(Boolean).join(' | ') || 'email@example.com | City, Country'}</p><div className="profile-links">{[['LinkedIn', resume.personal.linkedin], ['GitHub', resume.personal.github], ['LeetCode', resume.personal.leetcode], ['Codeforces', resume.personal.codeforces]].filter(([, value]) => value).map(([label, value]) => <a key={label} href={profileHref(value)} target="_blank" rel="noreferrer">{label}</a>)}</div></header>{resume.sectionOrder.filter((section) => hasResumeSection(resume, section)).map((section) => <OrderedPaperSection key={section} section={section} resume={resume} />)}</article></section>
+  return <section className="resume-template-preview"><div className="template-label"><span>ATS-friendly template</span><small>Standard headings · single column · empty sections omitted</small></div><article className="resume-paper ats-paper" style={{ fontFamily: resume.formatting?.fontFamily, textAlign: resume.formatting?.alignment }}><header><h2>{resume.personal.name || 'Your Name'}</h2><strong>{resume.personal.role || 'Professional title'}</strong><p>{[resume.personal.email, resume.personal.phone, resume.personal.location].filter(Boolean).join(' | ') || 'email@example.com | City, Country'}</p><div className="profile-links">{[['LinkedIn', resume.personal.linkedin], ['GitHub', resume.personal.github], ['LeetCode', resume.personal.leetcode], ['Codeforces', resume.personal.codeforces]].filter(([, value]) => value).map(([label, value]) => <a key={label} href={profileHref(value)} target="_blank" rel="noreferrer">{label}</a>)}</div></header>{resume.sectionOrder.filter((section) => hasResumeSection(resume, section)).map((section) => <OrderedPaperSection key={section} section={section} resume={resume} />)}</article></section>
 }
 
 function OrderedPaperSection({ section, resume }) {
@@ -136,19 +172,41 @@ function PaperBlock({ title, children }) {
 }
 
 export default function ResumeBuilder() {
-  const [resume, setResume] = useState(emptyResume)
+  const { id } = useParams()
+  const [resume, setResume] = useState(() => normalizeResume())
   const [softSkillInput, setSoftSkillInput] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(Boolean(id))
+
+  useEffect(() => {
+    if (!id) return undefined
+    let active = true
+    async function loadResume() {
+      try {
+        const saved = await listResumes()
+        const record = saved.find((item) => String(item.id) === String(id))
+        if (!record) throw new Error('This resume could not be found.')
+        if (active) setResume(normalizeResume(record.data || record))
+      } catch (error) {
+        if (active) setMessage(error.message)
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    loadResume()
+    return () => { active = false }
+  }, [id])
 
   function updatePersonal(field, value) { setResume((current) => ({ ...current, personal: { ...current.personal, [field]: value } })) }
   function updateCodingProfile(index, field, value) { setResume((current) => ({ ...current, codingProfiles: current.codingProfiles.map((profile, profileIndex) => profileIndex === index ? { ...profile, [field]: value } : profile) })) }
   function moveSection(index, direction) { setResume((current) => { const nextIndex = index + direction; if (nextIndex < 0 || nextIndex >= current.sectionOrder.length) return current; const sectionOrder = [...current.sectionOrder]; [sectionOrder[index], sectionOrder[nextIndex]] = [sectionOrder[nextIndex], sectionOrder[index]]; return { ...current, sectionOrder } }) }
   async function save() {
     setBusy(true); setMessage('')
-    try { await saveResume({ name: resume.personal.name || 'Untitled resume', data: resume, template_id: 'clean' }); setMessage('Resume saved to your workspace.') } catch (error) { setMessage(error.message) } finally { setBusy(false) }
+    try { await saveResume({ ...(id ? { id } : {}), name: resume.personal.name || 'Untitled resume', data: resume, template_id: 'clean' }); setMessage('Resume saved to your workspace.') } catch (error) { setMessage(error.message) } finally { setBusy(false) }
   }
-  return <div className="editor-page"><div className="editor-toolbar"><div><p className="eyebrow">Resume maker</p><h1>{resume.personal.name || 'Untitled resume'}</h1></div><div className="editor-actions"><button className="secondary-button" onClick={() => window.print()}><Printer size={16} />Save PDF</button><button className="secondary-button" onClick={() => downloadDocx(resume)}><Download size={16} />Save DOCX</button><button className="primary-button" onClick={save} disabled={busy}><Save size={16} />{busy ? 'Saving...' : 'Save resume'}</button></div></div><div className="builder-page">
+  if (loading) return <div className="page"><p className="eyebrow">My resumes</p><h1>Loading resume...</h1></div>
+  return <div className="editor-page"><div className="editor-toolbar"><div><p className="eyebrow">My resumes / Editing</p><h1>{resume.personal.name || 'Untitled resume'}</h1></div><div className="editor-actions"><label className="format-control">Font<select value={resume.formatting.fontFamily} onChange={(event) => setResume((current) => ({ ...current, formatting: { ...current.formatting, fontFamily: event.target.value } }))}><option>Arial</option><option>Georgia</option><option>Calibri</option><option>Times New Roman</option></select></label><label className="format-control">Align<select value={resume.formatting.alignment} onChange={(event) => setResume((current) => ({ ...current, formatting: { ...current.formatting, alignment: event.target.value } }))}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><button className="secondary-button" onClick={() => window.print()}><Printer size={16} />Save PDF</button><button className="secondary-button" onClick={() => downloadDocx(resume)}><Download size={16} />Save DOCX</button><button className="primary-button" onClick={save} disabled={busy}><Save size={16} />{busy ? 'Saving...' : 'Save resume'}</button></div></div><div className="builder-page">
     <Section title="Personal information"><div className="form-grid">{[['name','Full name'],['role','Professional title'],['email','Email'],['phone','Phone'],['location','Location'],['linkedin','LinkedIn URL'],['github','GitHub profile URL'],['leetcode','LeetCode profile URL'],['codeforces','Codeforces profile URL']].map(([field, label]) => <label key={field}>{label}<input value={resume.personal[field]} placeholder={['linkedin', 'github', 'leetcode', 'codeforces'].includes(field) ? 'https://...' : ''} onChange={(event) => updatePersonal(field, event.target.value)} /></label>)}</div></Section>
     <Section title="Professional summary"><textarea className="builder-textarea" rows="5" value={resume.summary} onChange={(event) => setResume((current) => ({ ...current, summary: event.target.value }))} placeholder="Describe your experience and the value you bring." /></Section>
     <Section title="Experience" action={<button className="plain-button" onClick={() => setResume((current) => ({ ...current, experience: [...current.experience, { company: '', title: '', dates: '', bullets: [''] }] }))}><Plus size={14} />Add experience</button>}>{resume.experience.map((item, index) => <div className="builder-item" key={index}><div className="form-grid"><label>Company<input value={item.company} onChange={(event) => updateList(setResume, 'experience', index, 'company', event.target.value)} /></label><label>Title<input value={item.title} onChange={(event) => updateList(setResume, 'experience', index, 'title', event.target.value)} /></label><label>Dates<input value={item.dates} onChange={(event) => updateList(setResume, 'experience', index, 'dates', event.target.value)} /></label></div><label className="field-label">Achievements and responsibilities<textarea rows="4" value={item.bullets.join('\n')} onChange={(event) => updateList(setResume, 'experience', index, 'bullets', event.target.value.split('\n'))} /></label></div>)}</Section>

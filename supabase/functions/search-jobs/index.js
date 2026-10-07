@@ -82,36 +82,6 @@ function mapJob(job, resume) {
   }
 }
 
-async function searchAlternativeJobs(query, resume, country) {
-  const response = await fetch('https://www.arbeitnow.com/api/job-board-api?page=1')
-  if (!response.ok) return []
-  const payload = await response.json()
-  const terms = normalize(query).split(' ').filter((term) => term.length > 2)
-  const countryTerms = country === 'in'
-    ? ['india', 'bangalore', 'bengaluru', 'mumbai', 'delhi', 'hyderabad', 'pune', 'chennai', 'gurgaon', 'gurugram', 'noida', 'kolkata']
-    : ['united states', 'usa', 'new york', 'california', 'texas', 'seattle', 'boston', 'chicago']
-  const rows = Array.isArray(payload.data) ? payload.data : []
-  return rows
-    .filter((job) => {
-      const text = normalize(`${job.title || ''} ${job.company_name || ''} ${job.description || ''} ${(job.tags || []).join(' ')}`)
-      const jobLocation = normalize(job.location)
-      const matchesCountry = job.remote || countryTerms.some((term) => jobLocation.includes(term) || text.includes(term))
-      return matchesCountry && (!terms.length || terms.some((term) => text.includes(term)))
-    })
-    .slice(0, 12)
-    .map((job) => mapJob({
-      job_id: job.slug || job.url,
-      job_title: job.title,
-      employer_name: job.company_name,
-      job_location: job.location,
-      job_is_remote: Boolean(job.remote),
-      job_apply_link: job.url,
-      job_description: job.description,
-      job_required_skills: job.tags,
-      job_posted_at: job.created_at,
-    }, resume))
-}
-
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {

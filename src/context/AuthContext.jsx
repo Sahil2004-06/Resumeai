@@ -17,18 +17,23 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false)
-      return undefined
-    }
+    if (!supabase) return undefined
+
     let active = true
     supabase.auth.getSession().then(({ data }) => {
       if (active) {
         setSession(data.session)
         setLoading(false)
       }
+    }).catch(() => {
+      if (active) setLoading(false)
     })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession))
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+      setLoading(false)
+    })
+
     return () => {
       active = false
       listener.subscription.unsubscribe()

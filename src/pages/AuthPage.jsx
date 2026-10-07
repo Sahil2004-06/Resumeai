@@ -18,7 +18,7 @@ export default function AuthPage({ mode = 'login' }) {
     const result = isSignup ? await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } }) : await supabase.auth.signInWithPassword({ email, password })
     if (result.error) setMessage('Authentication failed. Check your details and try again.')
     else if (isSignup) setMessage('Check your email to confirm your account.')
-    else navigate('/')
+    else navigate('/', { replace: true })
     setBusy(false)
   }
 
